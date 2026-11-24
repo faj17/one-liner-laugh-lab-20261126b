@@ -23,16 +23,23 @@ MAX_CHARS = 200
 
 
 def validate(line: str) -> str:
-    """Strip and sanity-check the line; raise ValueError on bad input."""
+    """Strip and sanity-check the line; raise ValueError on bad input.
+
+    Checks run in order of specificity: a blank line gets its own
+    error instead of the length error, and control characters are
+    rejected so the output is always a clean, printable single line.
+    """
     text = line.strip()
+    if not text:
+        raise ValueError("line must not be empty or only whitespace")
     if not MIN_CHARS <= len(text) <= MAX_CHARS:
         raise ValueError(
             f"line must be {MIN_CHARS}-{MAX_CHARS} chars, got {len(text)}"
         )
     if "\n" in text or "\r" in text:
         raise ValueError("line must be a single line")
-    if not text:
-        raise ValueError("line must not be only whitespace")
+    if any(ord(ch) < 0x20 and ch not in "\t" for ch in text):
+        raise ValueError("line must not contain control characters")
     return text
 
 
@@ -40,6 +47,14 @@ def main() -> None:
     text = validate(LINE)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_FILE.write_text(text, encoding="utf-8")
+    # Read back and confirm the file holds exactly the validated line:
+    # a stray newline or encoding slip would fail the 1-200 char gate.
+    written = OUTPUT_FILE.read_text(encoding="utf-8")
+    if written != text:
+        raise RuntimeError(
+            f"{OUTPUT_FILE} does not match the validated line "
+            f"({len(written)} chars written, {len(text)} expected)"
+        )
     print(text)
     print(f"Wrote {len(text)} chars to {OUTPUT_FILE}")
 
